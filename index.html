@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>食谱热量计算器</title>
+  <meta name="description" content="预先录入食材能量，做菜时按克重计算总热量与单份热量。支持离线使用。">
+  <meta name="theme-color" content="#F3F6F0">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="热量计算">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M12 2.8c.6 3.2 2.2 4.5 3.7 5.9A6.6 6.6 0 1 1 5.4 13c0-2.1 1-3.8 2.5-5.2.4 1.5 1.2 2.4 2.2 2.7-.6-2.6 0-5.3 1.9-7.7Z" fill="currentColor"/>
+            </svg>
+          </span>
+          <div class="brand-text">
+            <h1 id="page-title">食材库</h1>
+            <p id="page-subtitle">记录食材能量，随时换算</p>
+          </div>
+        </div>
+        <span class="pill" id="food-count">0 种</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- 食材库 -->
+      <section class="view" id="view-library">
+        <div class="searchbar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5"></circle>
+            <path d="m16 16 4 4"></path>
+          </svg>
+          <input id="library-search" type="search" placeholder="搜索食材名称" autocomplete="off" aria-label="搜索食材">
+        </div>
+
+        <ul class="list" id="library-list"></ul>
+
+        <div class="empty" id="library-empty" hidden>
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 11h16a8 8 0 0 1-16 0Z"></path>
+              <path d="M9 7c0-1.5 1.3-1.7 1.3-3.2M13.5 7c0-1.5 1.3-1.7 1.3-3.2"></path>
+            </svg>
+          </div>
+          <h2>还没有食材</h2>
+          <p>先录入常吃食材的能量信息，之后做菜就能按克重直接换算热量。</p>
+          <button class="btn btn-primary" type="button" data-action="new-food">添加第一种食材</button>
+        </div>
+
+        <p class="list-empty" id="library-no-result" hidden>没有找到匹配的食材</p>
+      </section>
+
+      <!-- 配方计算 -->
+      <section class="view" id="view-calc" hidden>
+        <div class="card servings-card">
+          <div class="servings-info">
+            <div class="card-label">本次制作份数</div>
+            <div class="card-hint">总热量 ÷ 份数 = 单份热量</div>
+          </div>
+          <div class="stepper">
+            <button type="button" data-servings-step="-1" aria-label="减少份数">−</button>
+            <input id="servings-input" type="text" inputmode="decimal" value="1" aria-label="份数">
+            <button type="button" data-servings-step="1" aria-label="增加份数">+</button>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2>食材明细</h2>
+          <button class="link-btn" id="clear-recipe" type="button" hidden>清空</button>
+        </div>
+
+        <ul class="list" id="recipe-list"></ul>
+
+        <div class="empty compact" id="recipe-empty" hidden>
+          <p>从食材库选择食材，输入实际使用的克重，自动算出总热量和单份热量。</p>
+          <button class="btn btn-primary" type="button" data-action="pick-foods">选择食材</button>
+        </div>
+
+        <button class="btn btn-dashed" id="add-foods" type="button" data-action="pick-foods" hidden>+ 添加食材</button>
+
+        <div class="result-card" id="result-card" hidden>
+          <div class="result-grid">
+            <div class="result-item">
+              <span class="result-label">总热量</span>
+              <div class="result-value"><span id="result-total">0.0</span><small>kcal</small></div>
+            </div>
+            <div class="result-divider" aria-hidden="true"></div>
+            <div class="result-item">
+              <span class="result-label">单份热量</span>
+              <div class="result-value accent"><span id="result-per">0.0</span><small>kcal</small></div>
+            </div>
+          </div>
+          <p class="result-meta" id="result-meta">0 种食材 · 1 份</p>
+        </div>
+      </section>
+    </main>
+
+    <button class="fab" id="fab" type="button" aria-label="添加食材">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14"></path>
+      </svg>
+    </button>
+
+    <nav class="tabbar" aria-label="主导航">
+      <button class="tab is-active" type="button" data-tab="library" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 3.5 7.5 12 12l8.5-4.5L12 3Z"></path>
+          <path d="M3.5 12 12 16.5 20.5 12M3.5 16.5 12 21l8.5-4.5"></path>
+        </svg>
+        <span>食材库</span>
+      </button>
+      <button class="tab" type="button" data-tab="calc" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4.5" y="3" width="15" height="18" rx="3"></rect>
+          <path d="M8.2 7.5h7.6M8.2 12h.01M12 12h.01M15.8 12h.01M8.2 16.5h.01M12 16.5h.01M15.8 16.5h.01"></path>
+        </svg>
+        <span>热量计算</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 食材编辑弹层 -->
+  <div class="sheet-backdrop" id="editor-backdrop" hidden></div>
+  <section class="sheet" id="editor-sheet" role="dialog" aria-modal="true" aria-labelledby="editor-title" hidden>
+    <header class="sheet-head">
+      <h2 id="editor-title">添加食材</h2>
+      <button class="icon-btn" type="button" data-close-sheet="editor" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18"></path>
+        </svg>
+      </button>
+    </header>
+    <form id="food-form" novalidate>
+      <div class="sheet-body">
+        <label class="field">
+          <span class="field-label">食材名称</span>
+          <input id="food-name" type="text" maxlength="30" placeholder="如：全麦贝果" autocomplete="off" enterkeyhint="done">
+        </label>
+
+        <div class="field">
+          <span class="field-label">能量基准</span>
+          <div class="segmented" role="radiogroup" aria-label="能量基准">
+            <button class="seg-btn is-active" type="button" data-basis="per100g" role="radio" aria-checked="true">每 100g</button>
+            <button class="seg-btn" type="button" data-basis="perServing" role="radio" aria-checked="false">每份</button>
+          </div>
+        </div>
+
+        <label class="field">
+          <span class="field-label">能量值<span class="field-sub" id="basis-suffix">kcal / 100g</span></span>
+          <input id="food-energy" type="text" inputmode="decimal" placeholder="如：250" autocomplete="off">
+        </label>
+
+        <div class="field">
+          <span class="field-label">营养占比<span class="optional">选填</span></span>
+          <div class="triple">
+            <label class="mini-field">
+              <span>蛋白质 %</span>
+              <input id="food-p" type="text" inputmode="decimal" autocomplete="off">
+            </label>
+            <label class="mini-field">
+              <span>脂肪 %</span>
+              <input id="food-f" type="text" inputmode="decimal" autocomplete="off">
+            </label>
+            <label class="mini-field">
+              <span>碳水 %</span>
+              <input id="food-c" type="text" inputmode="decimal" autocomplete="off">
+            </label>
+          </div>
+          <p class="field-hint" id="macro-sum-hint">按能量占比记录，仅用于列表展示</p>
+        </div>
+
+        <p class="form-error" id="food-error" hidden></p>
+      </div>
+      <footer class="sheet-foot">
+        <button class="btn btn-ghost-danger" id="food-delete" type="button" hidden>删除</button>
+        <button class="btn btn-primary" type="submit">保存</button>
+      </footer>
+    </form>
+  </section>
+
+  <!-- 选择食材弹层 -->
+  <div class="sheet-backdrop" id="picker-backdrop" hidden></div>
+  <section class="sheet sheet-tall" id="picker-sheet" role="dialog" aria-modal="true" aria-labelledby="picker-title" hidden>
+    <header class="sheet-head">
+      <h2 id="picker-title">选择食材</h2>
+      <button class="icon-btn" type="button" data-close-sheet="picker" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18"></path>
+        </svg>
+      </button>
+    </header>
+    <div class="sheet-body">
+      <div class="searchbar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5"></circle>
+          <path d="m16 16 4 4"></path>
+        </svg>
+        <input id="picker-search" type="search" placeholder="搜索食材" autocomplete="off" aria-label="搜索食材">
+      </div>
+      <ul class="pick-list" id="picker-list"></ul>
+      <p class="list-empty" id="picker-no-result" hidden>没有找到匹配的食材</p>
+      <div class="empty compact" id="picker-empty" hidden>
+        <p>食材库还是空的，先添加食材再回来计算。</p>
+        <button class="btn btn-primary" type="button" data-action="new-food">去添加食材</button>
+      </div>
+    </div>
+    <footer class="sheet-foot">
+      <button class="btn btn-primary" id="picker-confirm" type="button" disabled>请选择食材</button>
+    </footer>
+  </section>
+
+  <!-- 确认弹窗 -->
+  <div class="modal-backdrop" id="confirm-backdrop" hidden>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <h2 id="confirm-title">确认操作？</h2>
+      <p id="confirm-text"></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirm-cancel" type="button">取消</button>
+        <button class="btn btn-danger" id="confirm-ok" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
