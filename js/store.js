@@ -6,6 +6,7 @@
 
   var FOODS_KEY = 'fcc.foods.v1';
   var RECIPE_KEY = 'fcc.recipe.v1';
+  var RECORDS_KEY = 'fcc.records.v1';
   var TAB_KEY = 'fcc.tab.v1';
 
   function read(key, fallback) {
@@ -103,6 +104,69 @@
   }
 
   var recipe = loadRecipe();
+
+  function normalizeRecordItem(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var name = String(raw.name == null ? '' : raw.name).trim();
+    if (!name) return null;
+    var amount = raw.amount == null || raw.amount === '' ? null : Number(raw.amount);
+    if (amount != null && (!isFinite(amount) || amount < 0)) amount = null;
+    var kcal = Number(raw.kcal);
+    if (!isFinite(kcal) || kcal < 0) kcal = 0;
+    return {
+      name: name,
+      amount: amount,
+      unit: raw.unit === '份' ? '份' : 'g',
+      kcal: kcal
+    };
+  }
+
+  function normalizeRecord(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var name = String(raw.name == null ? '' : raw.name).trim();
+    if (!name) return null;
+    var servings = Number(raw.servings);
+    if (!isFinite(servings) || servings <= 0) servings = 1;
+    var items = Array.isArray(raw.items) ? raw.items.map(normalizeRecordItem).filter(Boolean) : [];
+    if (!items.length) return null;
+
+    var totalKcal = 0;
+    items.forEach(function (item) {
+      totalKcal += item.kcal;
+    });
+
+    return {
+      id: raw.id ? String(raw.id) : uid(),
+      name: name,
+      servings: servings,
+      items: items,
+      totalKcal: totalKcal,
+      perServingKcal: totalKcal / servings,
+      createdAt: Number(raw.createdAt) || Date.now()
+    };
+  }
+
+  function loadRecords() {
+    var list = read(RECORDS_KEY, []);
+    if (!Array.isArray(list)) return [];
+    return list.map(normalizeRecord).filter(Boolean).sort(function (a, b) {
+      return b.createdAt - a.createdAt;
+    });
+  }
+
+  var records = loadRecords();
+
+  function persistRecords() {
+    write(RECORDS_KEY, records);
+  }
+
+  function findRecord(id) {
+    for (var i = 0; i < records.length; i++) {
+      if (records[i].id === id) return records[i];
+    }
+    return null;
+  }
+
   var tab = read(TAB_KEY, 'library');
 
   function persistRecipe() {
@@ -210,12 +274,44 @@
     },
 
     getTab: function () {
-      return tab === 'calc' ? 'calc' : 'library';
+      return tab === 'calc' || tab === 'recipes' ? tab : 'library';
     },
 
     setTab: function (next) {
-      tab = next === 'calc' ? 'calc' : 'library';
+      tab = next === 'calc' || next === 'recipes' ? next : 'library';
       write(TAB_KEY, tab);
+    },
+
+    getRecipeRecords: function () {
+      return records.map(function (record) {
+        return Object.assign({}, record, {
+          items: record.items.map(function (item) {
+            return Object.assign({}, item);
+          })
+        });
+      });
+    },
+
+    getRecipeRecord: function (id) {
+      return findRecord(id);
+    },
+
+    addRecipeRecord: function (data) {
+      var record = normalizeRecord(data);
+      if (!record) return null;
+      records.unshift(record);
+      persistRecords();
+      return record;
+    },
+
+    deleteRecipeRecord: function (id) {
+      var before = records.length;
+      records = records.filter(function (record) {
+        return record.id !== id;
+      });
+      if (before === records.length) return false;
+      persistRecords();
+      return true;
     }
   };
 })();

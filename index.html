@@ -94,15 +94,38 @@
           <div class="result-grid">
             <div class="result-item">
               <span class="result-label">总热量</span>
-              <div class="result-value"><span id="result-total">0.0</span><small>kcal</small></div>
+              <div class="result-value"><span id="result-total">0.0</span><small>千卡</small></div>
             </div>
             <div class="result-divider" aria-hidden="true"></div>
             <div class="result-item">
               <span class="result-label">单份热量</span>
-              <div class="result-value accent"><span id="result-per">0.0</span><small>kcal</small></div>
+              <div class="result-value accent"><span id="result-per">0.0</span><small>千卡</small></div>
             </div>
           </div>
           <p class="result-meta" id="result-meta">0 种食材 · 1 份</p>
+          <button class="result-save" id="save-recipe" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"></path>
+            </svg>
+            保存为菜谱
+          </button>
+        </div>
+      </section>
+
+      <!-- 菜谱记录 -->
+      <section class="view" id="view-recipes" hidden>
+        <ul class="list" id="recipes-list"></ul>
+
+        <div class="empty" id="recipes-empty" hidden>
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"></path>
+              <path d="M9 8h6M9 12h6"></path>
+            </svg>
+          </div>
+          <h2>还没有菜谱记录</h2>
+          <p>在「热量计算」里选好食材和份数，点「保存为菜谱」，这里会留下每次制作的原料和成品热量。</p>
+          <button class="btn btn-primary" type="button" data-action="go-calc">去计算</button>
         </div>
       </section>
     </main>
@@ -127,6 +150,13 @@
           <path d="M8.2 7.5h7.6M8.2 12h.01M12 12h.01M15.8 12h.01M8.2 16.5h.01M12 16.5h.01M15.8 16.5h.01"></path>
         </svg>
         <span>热量计算</span>
+      </button>
+      <button class="tab" type="button" data-tab="recipes" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"></path>
+          <path d="M9 8h6M9 12h6"></path>
+        </svg>
+        <span>菜谱</span>
       </button>
     </nav>
   </div>
@@ -219,6 +249,33 @@
     <footer class="sheet-foot">
       <button class="btn btn-primary" id="picker-confirm" type="button" disabled>请选择食材</button>
     </footer>
+  </section>
+
+  <!-- 保存菜谱弹层 -->
+  <div class="sheet-backdrop" id="save-backdrop" hidden></div>
+  <section class="sheet" id="save-sheet" role="dialog" aria-modal="true" aria-labelledby="save-title" hidden>
+    <header class="sheet-head">
+      <h2 id="save-title">保存为菜谱</h2>
+      <button class="icon-btn" type="button" data-close-sheet="save" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18"></path>
+        </svg>
+      </button>
+    </header>
+    <form id="save-form" novalidate>
+      <div class="sheet-body">
+        <label class="field">
+          <span class="field-label">成品名称</span>
+          <input id="save-name" type="text" maxlength="30" placeholder="如：全麦贝果" autocomplete="off" enterkeyhint="done">
+        </label>
+        <p class="field-hint" id="save-summary"></p>
+        <p class="form-error" id="save-error" hidden></p>
+      </div>
+      <footer class="sheet-foot">
+        <button class="btn btn-ghost" type="button" data-close-sheet="save">取消</button>
+        <button class="btn btn-primary" type="submit">保存</button>
+      </footer>
+    </form>
   </section>
 
   <!-- 确认弹窗 -->

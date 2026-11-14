@@ -19,7 +19,9 @@
     editingId: null,
     basis: 'per100g',
     pickerQuery: '',
-    pickerSelection: []
+    pickerSelection: [],
+    expandedRecordId: null,
+    saveDraft: null
   };
 
   var dom = {};
@@ -85,21 +87,24 @@
     applyTabUI();
     renderLibrary();
     renderRecipe();
+    renderRecipes();
     registerServiceWorker();
   }
 
   function cacheDom() {
     var ids = [
       'page-title', 'page-subtitle', 'food-count',
-      'view-library', 'view-calc',
+      'view-library', 'view-calc', 'view-recipes',
       'library-search', 'library-list', 'library-empty', 'library-no-result',
       'servings-input', 'recipe-list', 'recipe-empty', 'add-foods', 'clear-recipe',
-      'result-card', 'result-total', 'result-per', 'result-meta',
+      'result-card', 'result-total', 'result-per', 'result-meta', 'save-recipe',
+      'recipes-list', 'recipes-empty',
       'fab',
       'editor-sheet', 'editor-backdrop', 'editor-title', 'food-form', 'food-name',
       'food-energy', 'food-p', 'food-f', 'food-c', 'food-delete', 'food-error',
       'basis-suffix', 'macro-sum-hint',
       'picker-sheet', 'picker-backdrop', 'picker-search', 'picker-list', 'picker-no-result', 'picker-empty', 'picker-confirm',
+      'save-sheet', 'save-backdrop', 'save-form', 'save-name', 'save-summary', 'save-error',
       'confirm-backdrop', 'confirm-title', 'confirm-text', 'confirm-ok', 'confirm-cancel',
       'toast'
     ];
@@ -130,6 +135,8 @@
         openEditor(null);
       } else if (action === 'pick-foods') {
         openPicker();
+      } else if (action === 'go-calc') {
+        setTab('calc');
       }
     });
 
@@ -164,6 +171,10 @@
 
     dom.pickerBackdrop.addEventListener('click', function () {
       closeSheet('picker');
+    });
+
+    dom.saveBackdrop.addEventListener('click', function () {
+      closeSheet('save');
     });
 
     $all('.seg-btn').forEach(function (btn) {
@@ -208,6 +219,10 @@
     dom.recipeList.addEventListener('click', handleRecipeClick);
     dom.addFoods.addEventListener('click', openPicker);
     dom.clearRecipe.addEventListener('click', clearRecipe);
+    dom.saveRecipe.addEventListener('click', openSaveSheet);
+    dom.saveForm.addEventListener('submit', handleRecipeSave);
+    dom.recipesList.addEventListener('click', handleRecordClick);
+    dom.recipesList.addEventListener('keydown', handleRecordKeydown);
 
     dom.pickerSearch.addEventListener('input', function () {
       state.pickerQuery = dom.pickerSearch.value;
@@ -250,17 +265,25 @@
         closeSheet('picker');
         return;
       }
+      if (!dom.saveSheet.hidden) {
+        closeSheet('save');
+        return;
+      }
       if (!dom.editorSheet.hidden) closeSheet('editor');
     });
   }
 
   /* ---------------- Tab ---------------- */
 
+  function normalizeTab(tab) {
+    return tab === 'calc' || tab === 'recipes' ? tab : 'library';
+  }
+
   function applyTabUI() {
-    var isLibrary = state.tab === 'library';
-    dom.viewLibrary.hidden = !isLibrary;
-    dom.viewCalc.hidden = isLibrary;
-    dom.fab.hidden = !isLibrary;
+    dom.viewLibrary.hidden = state.tab !== 'library';
+    dom.viewCalc.hidden = state.tab !== 'calc';
+    dom.viewRecipes.hidden = state.tab !== 'recipes';
+    dom.fab.hidden = state.tab !== 'library';
 
     $all('.tab').forEach(function (btn) {
       var active = btn.getAttribute('data-tab') === state.tab;
@@ -272,24 +295,29 @@
   }
 
   function setTab(tab) {
-    state.tab = tab === 'calc' ? 'calc' : 'library';
+    state.tab = normalizeTab(tab);
     Store.setTab(state.tab);
     applyTabUI();
     window.scrollTo(0, 0);
   }
 
   function updateHeader() {
-    var isLibrary = state.tab === 'library';
-    dom.pageTitle.textContent = isLibrary ? '食材库' : '热量计算';
-    dom.pageSubtitle.textContent = isLibrary ? '记录食材能量，随时换算' : '按克重换算整份与单份热量';
-
-    if (isLibrary) {
+    if (state.tab === 'library') {
+      dom.pageTitle.textContent = '食材库';
+      dom.pageSubtitle.textContent = '记录食材能量，随时换算';
       dom.foodCount.textContent = Store.getFoods().length + ' 种';
       dom.foodCount.hidden = false;
-    } else {
+    } else if (state.tab === 'calc') {
+      dom.pageTitle.textContent = '热量计算';
+      dom.pageSubtitle.textContent = '按克重换算整份与单份热量';
       var count = Store.getRecipe().items.length;
       dom.foodCount.textContent = count + ' 种已选';
       dom.foodCount.hidden = count === 0;
+    } else {
+      dom.pageTitle.textContent = '菜谱';
+      dom.pageSubtitle.textContent = '每次制作的原料与成品热量';
+      dom.foodCount.textContent = Store.getRecipeRecords().length + ' 个';
+      dom.foodCount.hidden = false;
     }
   }
 
@@ -481,6 +509,202 @@
       Store.clearRecipe();
       renderRecipe();
       toast('已清空本次计算');
+    });
+  }
+
+  /* ---------------- 菜谱记录 ---------------- */
+
+  function pad2(num) {
+    return num < 10 ? '0' + num : String(num);
+  }
+
+  function formatDate(ts) {
+    var date = new Date(ts);
+    if (isNaN(date.getTime())) return '';
+    return date.getFullYear() + '/' + pad2(date.getMonth() + 1) + '/' + pad2(date.getDate()) +
+      ' ' + pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+  }
+
+  function buildRecipeSnapshot() {
+    var recipe = Store.getRecipe();
+    var items = [];
+    recipe.items.forEach(function (item) {
+      var food = Store.getFood(item.foodId);
+      var amount = Number(item.amount);
+      if (!food || item.amount == null || !isFinite(amount) || amount <= 0) return;
+      items.push({
+        name: food.name,
+        amount: amount,
+        unit: food.basis === 'per100g' ? 'g' : '份',
+        kcal: lineCalories(food, amount)
+      });
+    });
+    return { servings: recipe.servings, items: items };
+  }
+
+  function openSaveSheet() {
+    var snapshot = buildRecipeSnapshot();
+    if (!snapshot.items.length) {
+      toast('先填写食材用量再保存');
+      return;
+    }
+
+    state.saveDraft = snapshot;
+    var total = 0;
+    snapshot.items.forEach(function (item) {
+      total += item.kcal;
+    });
+
+    dom.saveName.value = '';
+    dom.saveError.hidden = true;
+    dom.saveSummary.textContent = snapshot.items.length + ' 种食材 · 总热量 ' + kcalLine(total) +
+      ' 千卡 · 单份 ' + kcalLine(total / snapshot.servings) + ' 千卡';
+    openSheet('save');
+    window.setTimeout(function () {
+      dom.saveName.focus();
+    }, 320);
+  }
+
+  function handleRecipeSave(event) {
+    event.preventDefault();
+
+    var snapshot = state.saveDraft;
+    if (!snapshot || !snapshot.items.length) {
+      dom.saveError.textContent = '当前没有可保存的食材';
+      dom.saveError.hidden = false;
+      return;
+    }
+
+    var name = dom.saveName.value.trim();
+    if (!name) {
+      dom.saveError.textContent = '请填写成品名称';
+      dom.saveError.hidden = false;
+      return;
+    }
+
+    var record = Store.addRecipeRecord({
+      name: name,
+      servings: snapshot.servings,
+      items: snapshot.items
+    });
+
+    if (!record) {
+      dom.saveError.textContent = '保存失败，请重试';
+      dom.saveError.hidden = false;
+      return;
+    }
+
+    closeSheet('save');
+    state.expandedRecordId = record.id;
+    renderRecipes();
+    setTab('recipes');
+    toast('已保存「' + name + '」');
+  }
+
+  function renderRecipes() {
+    var records = Store.getRecipeRecords();
+    dom.recipesList.replaceChildren();
+    records.forEach(function (record) {
+      dom.recipesList.appendChild(createRecordCard(record));
+    });
+
+    dom.recipesList.hidden = records.length === 0;
+    dom.recipesEmpty.hidden = records.length > 0;
+    updateHeader();
+  }
+
+  function createRecordCard(record) {
+    var card = el('li', 'record-card');
+    card.setAttribute('data-record-id', record.id);
+
+    var expanded = state.expandedRecordId === record.id;
+
+    var head = el('div', 'record-head');
+    head.setAttribute('role', 'button');
+    head.setAttribute('tabindex', '0');
+    head.setAttribute('aria-expanded', String(expanded));
+    head.setAttribute('aria-label', (expanded ? '收起 ' : '展开 ') + record.name);
+
+    var main = el('div', 'record-main');
+    main.appendChild(el('div', 'record-name', record.name));
+    main.appendChild(el('div', 'record-meta',
+      formatDate(record.createdAt) + ' · ' + record.items.length + ' 种食材 · ' + trimNumber(record.servings) + ' 份'));
+    head.appendChild(main);
+
+    var right = el('div', 'record-right');
+    var per = el('div', 'record-per', kcalLine(record.perServingKcal));
+    per.appendChild(el('small', '', '千卡/份'));
+    right.appendChild(per);
+    right.appendChild(el('div', 'record-total', '总 ' + kcalLine(record.totalKcal) + ' 千卡'));
+    head.appendChild(right);
+
+    head.appendChild(el('span', 'record-chevron', '›'));
+    card.appendChild(head);
+
+    var detail = el('div', 'record-detail');
+    detail.hidden = !expanded;
+
+    var itemList = el('ul', 'record-items');
+    record.items.forEach(function (item) {
+      var row = el('li', 'record-item');
+      row.appendChild(el('span', 'record-item-name', item.name));
+      row.appendChild(el('span', 'record-item-amount',
+        (item.amount == null ? '—' : trimNumber(item.amount)) + ' ' + item.unit));
+      row.appendChild(el('span', 'record-item-kcal', kcalLine(item.kcal) + ' 千卡'));
+      itemList.appendChild(row);
+    });
+    detail.appendChild(itemList);
+
+    var actions = el('div', 'record-actions');
+    var remove = el('button', 'record-delete', '删除记录');
+    remove.type = 'button';
+    remove.setAttribute('data-record-delete', record.id);
+    actions.appendChild(remove);
+    detail.appendChild(actions);
+
+    card.appendChild(detail);
+    return card;
+  }
+
+  function toggleRecord(id) {
+    state.expandedRecordId = state.expandedRecordId === id ? null : id;
+    renderRecipes();
+  }
+
+  function handleRecordClick(event) {
+    var remove = event.target.closest('[data-record-delete]');
+    if (remove) {
+      deleteRecord(remove.getAttribute('data-record-delete'));
+      return;
+    }
+    var head = event.target.closest('.record-head');
+    if (!head) return;
+    toggleRecord(head.closest('.record-card').getAttribute('data-record-id'));
+  }
+
+  function handleRecordKeydown(event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    var head = event.target.closest('.record-head');
+    if (!head) return;
+    event.preventDefault();
+    toggleRecord(head.closest('.record-card').getAttribute('data-record-id'));
+  }
+
+  function deleteRecord(id) {
+    var record = Store.getRecipeRecord(id);
+    if (!record) return;
+
+    askConfirm({
+      title: '删除「' + record.name + '」？',
+      text: '这条制作记录会被删除，无法恢复。',
+      okText: '删除',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      Store.deleteRecipeRecord(id);
+      if (state.expandedRecordId === id) state.expandedRecordId = null;
+      renderRecipes();
+      toast('已删除记录');
     });
   }
 
@@ -722,6 +946,9 @@
     if (name === 'picker') {
       return { sheet: dom.pickerSheet, backdrop: dom.pickerBackdrop };
     }
+    if (name === 'save') {
+      return { sheet: dom.saveSheet, backdrop: dom.saveBackdrop };
+    }
     return { sheet: dom.editorSheet, backdrop: dom.editorBackdrop };
   }
 
@@ -758,6 +985,7 @@
 
     document.body.classList.remove('sheet-open');
     if (name === 'editor') state.editingId = null;
+    if (name === 'save') state.saveDraft = null;
   }
 
   /* ---------------- 确认弹窗 / Toast ---------------- */
