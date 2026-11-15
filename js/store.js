@@ -153,13 +153,133 @@
   function loadSavedRecipes() {
     var list = read(RECIPES_KEY, []);
     if (!Array.isArray(list)) return [];
-    return list.map(normalizeSavedRecipe).filter(Boolean);
+    return list.map(function (raw) {
+      return normalizeSavedRecipe(raw) || adaptLegacyEntry(raw);
+    }).filter(Boolean);
   }
 
   var savedRecipes = loadSavedRecipes();
 
   function persistSavedRecipes() {
     write(RECIPES_KEY, savedRecipes);
+  }
+
+  /* 兼容早期版本可能使用过的字段名与存储键，尽量把旧记录找回来 */
+
+  function pickField(source, names) {
+    for (var i = 0; i < names.length; i++) {
+      var value = source[names[i]];
+      if (value != null && value !== '') return value;
+    }
+    return undefined;
+  }
+
+  function findFoodById(id) {
+    for (var i = 0; i < foods.length; i++) {
+      if (foods[i].id === id) return foods[i];
+    }
+    return null;
+  }
+
+  function adaptLegacyItem(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+
+    var foodRef = pickField(raw, ['foodId', 'food', 'foodID', 'food_id', 'ingredientId']);
+    var food = null;
+    if (foodRef && typeof foodRef === 'object') {
+      food = foodRef;
+    } else if (foodRef != null) {
+      food = findFoodById(String(foodRef));
+    }
+
+    var name = pickField(raw, ['name', 'foodName', 'title', 'label']) || (food && food.name);
+    if (!name) return null;
+
+    var amount = Number(pickField(raw, ['amount', 'grams', 'gram', 'weight', 'quantity', 'qty']));
+    var energy = Number(pickField(raw, ['energy', 'kcal', 'energyKcal', 'calories', 'kcalPer100g', 'per100g']));
+    if (!isFinite(energy) && food) energy = Number(food.energy);
+
+    var unit = pickField(raw, ['basis', 'unit']);
+    if (unit == null && food) unit = food.basis;
+
+    return normalizeSavedItem({
+      name: name,
+      basis: unit === 'perServing' || unit === '份' || unit === 'serving' ? 'perServing' : 'per100g',
+      energy: isFinite(energy) ? energy : 0,
+      amount: isFinite(amount) ? amount : 0
+    });
+  }
+
+  function adaptLegacyEntry(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+
+    var name = pickField(raw, ['name', 'title', 'recipeName']);
+    if (!name) return null;
+
+    var itemsRaw = pickField(raw, ['items', 'ingredients', 'foods', 'components']);
+    if (!Array.isArray(itemsRaw)) return null;
+
+    var items = itemsRaw.map(adaptLegacyItem).filter(Boolean);
+    if (!items.length) return null;
+
+    var servings = Number(pickField(raw, ['servings', 'portions', 'servingCount', 'pieces']));
+    var created = Number(pickField(raw, ['createdAt', 'savedAt', 'time', 'timestamp', 'date']));
+
+    return normalizeSavedRecipe({
+      id: pickField(raw, ['id']),
+      name: name,
+      servings: isFinite(servings) && servings > 0 ? servings : 1,
+      items: items,
+      createdAt: isFinite(created) ? created : Date.now(),
+      updatedAt: isFinite(created) ? created : Date.now()
+    });
+  }
+
+  function collectLegacyRecipes() {
+    var found = [];
+
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (!key || key === RECIPES_KEY || key === FOODS_KEY || key === RECIPE_KEY || key === TAB_KEY) continue;
+        if (!/(recipe|history|record|saved)/i.test(key)) continue;
+
+        var value = read(key, null);
+        var list = null;
+
+        if (Array.isArray(value)) {
+          list = value;
+        } else if (value && typeof value === 'object') {
+          if (Array.isArray(value.items)) {
+            list = [value];
+          } else if (Array.isArray(value.recipes)) {
+            list = value.recipes;
+          } else if (Array.isArray(value.entries)) {
+            list = value.entries;
+          } else if (Array.isArray(value.history)) {
+            list = value.history;
+          }
+        }
+
+        if (!list) continue;
+        list.forEach(function (raw) {
+          var entry = adaptLegacyEntry(raw);
+          if (entry) found.push(entry);
+        });
+      }
+    } catch (error) {
+      return [];
+    }
+
+    return found;
+  }
+
+  if (!savedRecipes.length) {
+    var legacyRecipes = collectLegacyRecipes();
+    if (legacyRecipes.length) {
+      savedRecipes = legacyRecipes;
+      persistSavedRecipes();
+    }
   }
 
   function indexOfSavedRecipe(id) {

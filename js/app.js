@@ -719,19 +719,19 @@
     dom.recipeItems.replaceChildren();
 
     draft.items.forEach(function (item, index) {
-      var row = el('li', 'edit-item');
+      var row = el('li', 'recipe-row');
       row.setAttribute('data-index', String(index));
 
-      var info = el('div', 'edit-item-info');
-      info.appendChild(el('div', 'edit-item-name', item.name));
-      info.appendChild(el('div', 'edit-item-meta',
+      var main = el('div', 'recipe-main');
+      main.appendChild(el('div', 'recipe-name', item.name));
+      main.appendChild(el('div', 'recipe-sub',
         kcalShort(item.energy) + ' 千卡 / ' + (item.basis === 'per100g' ? '100g' : '份')));
-      row.appendChild(info);
+      row.appendChild(main);
 
-      var control = el('div', 'edit-item-control');
+      var control = el('div', 'recipe-control');
       var box = el('div', 'amount-box');
       var input = document.createElement('input');
-      input.className = 'edit-amount';
+      input.className = 'amount-input edit-amount';
       input.type = 'text';
       input.inputMode = 'decimal';
       input.autocomplete = 'off';
@@ -763,7 +763,8 @@
     var input = event.target.closest('.edit-amount');
     if (!input || !state.recipeDraft) return;
 
-    var row = input.closest('.edit-item');
+    var row = input.closest('[data-index]');
+    if (!row) return;
     var index = Number(row.getAttribute('data-index'));
     var item = state.recipeDraft.items[index];
     if (!item) return;

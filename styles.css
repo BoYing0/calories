@@ -430,8 +430,8 @@ input:focus-visible {
 }
 
 .amount-input {
-  width: 100%;
-  min-width: 0;
+  flex: 1 1 0;
+  width: 0;
   border: 0;
   background: transparent;
   text-align: right;
@@ -443,6 +443,7 @@ input:focus-visible {
 
 .amount-unit {
   flex: none;
+  margin-left: 3px;
   font-size: 11px;
   color: var(--muted);
 }
@@ -1276,48 +1277,6 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.edit-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface-soft);
-}
-
-.edit-item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.edit-item-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.edit-item-meta {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.edit-item-control {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 3px;
-}
-
-.edit-item .amount-box {
-  width: 92px;
-  height: 38px;
-  background: #fff;
 }
 
 /* ---------- 桌面端 ---------- */
