@@ -1,5 +1,5 @@
 /* 离线缓存：应用外壳优先走缓存，页面导航失败时回退到 index.html */
-var CACHE_NAME = 'recipe-kcal-v5';
+var CACHE_NAME = 'recipe-kcal-v6';
 var CORE_ASSETS = [
   './',
   './index.html',
@@ -16,7 +16,9 @@ var CORE_ASSETS = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(CORE_ASSETS);
+      return cache.addAll(CORE_ASSETS.map(function (url) {
+        return new Request(url, { cache: 'reload' });
+      }));
     }).then(function () {
       return self.skipWaiting();
     })
@@ -53,6 +55,24 @@ self.addEventListener('fetch', function (event) {
     event.respondWith(
       fetch(request).catch(function () {
         return caches.match('./index.html');
+      })
+    );
+    return;
+  }
+
+  /* 样式和脚本优先取网络，避免拿到 GitHub Pages 的旧缓存；离线时回退缓存 */
+  if (/\.(?:css|js)$/.test(url.pathname)) {
+    event.respondWith(
+      fetch(request).then(function (response) {
+        if (response && response.ok) {
+          var copy = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) {
+            cache.put(request, copy);
+          });
+        }
+        return response;
+      }).catch(function () {
+        return caches.match(request);
       })
     );
     return;
