@@ -596,177 +596,6 @@ input:focus-visible {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.result-save {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 40px;
-  margin-top: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #dcf6e8;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.result-save:active {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.result-save svg {
-  width: 15px;
-  height: 15px;
-}
-
-/* ---------- 菜谱记录 ---------- */
-.record-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-
-.record-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 14px 14px 16px;
-  cursor: pointer;
-}
-
-.record-head:active {
-  background: var(--surface-soft);
-}
-
-.record-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.record-name {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.record-meta {
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--muted);
-}
-
-.record-right {
-  flex: none;
-  text-align: right;
-}
-
-.record-per {
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.record-per small {
-  margin-left: 2px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.record-total {
-  margin-top: 2px;
-  font-size: 10.5px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.record-chevron {
-  flex: none;
-  color: #b4c0b7;
-  font-size: 17px;
-  line-height: 1;
-  transition: transform 0.15s ease;
-}
-
-.record-head[aria-expanded="true"] .record-chevron {
-  transform: rotate(90deg);
-}
-
-.record-detail {
-  padding: 4px 16px 14px;
-  border-top: 1px solid var(--line);
-  background: var(--surface-soft);
-}
-
-.record-items {
-  padding-top: 4px;
-}
-
-.record-item {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--line);
-  font-size: 12.5px;
-}
-
-.record-item:last-child {
-  border-bottom: 0;
-}
-
-.record-item-name {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.record-item-amount {
-  flex: none;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.record-item-kcal {
-  flex: none;
-  min-width: 74px;
-  text-align: right;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.record-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
-}
-
-.record-delete {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.record-delete:active {
-  background: #f8dede;
-}
-
 /* ---------- 空状态 ---------- */
 .empty {
   padding: 38px 18px;
@@ -1266,6 +1095,229 @@ input:focus-visible {
 .toast.is-visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* ---------- 能量单位 ---------- */
+.energy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.energy-row input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.unit-toggle {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+
+.unit-btn {
+  height: 38px;
+  padding: 0 11px;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.unit-btn.is-active {
+  background: #fff;
+  color: var(--brand);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(22, 36, 28, 0.1);
+}
+
+/* ---------- 保存菜谱按钮 ---------- */
+.result-save {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  margin-top: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.result-save:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- 菜谱列表 ---------- */
+.saved-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.saved-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.saved-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-meta {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.saved-right {
+  flex: none;
+  text-align: right;
+}
+
+.saved-kcal {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-kcal small {
+  margin-left: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.saved-total {
+  margin-top: 1px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.saved-detail {
+  padding: 0 16px 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.saved-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.saved-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.saved-item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-item-amount {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-item-kcal {
+  flex: none;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.saved-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.saved-actions .btn {
+  flex: 1;
+  height: 40px;
+  font-size: 13px;
+}
+
+/* ---------- 菜谱编辑 ---------- */
+.edit-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.edit-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.edit-item-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edit-item-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.edit-item-control {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+}
+
+.edit-item .amount-box {
+  width: 92px;
+  height: 38px;
+  background: #fff;
 }
 
 /* ---------- 桌面端 ---------- */

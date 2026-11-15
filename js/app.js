@@ -13,15 +13,19 @@
     collator = null;
   }
 
+  var KJ_PER_KCAL = 4.184;
+
   var state = {
     tab: 'library',
     query: '',
     editingId: null,
     basis: 'per100g',
+    energyUnit: 'kj',
     pickerQuery: '',
     pickerSelection: [],
-    expandedRecordId: null,
-    saveDraft: null
+    editingRecipeId: null,
+    recipeDraft: null,
+    expandedRecipeId: null
   };
 
   var dom = {};
@@ -57,12 +61,28 @@
     return value.toFixed(1);
   }
 
+  function kcalShort(value) {
+    return trimNumber(Math.round(value * 10) / 10);
+  }
+
+  function round2(num) {
+    return Math.round(num * 100) / 100;
+  }
+
+  function toKcal(value, unit) {
+    return unit === 'kj' ? value / KJ_PER_KCAL : value;
+  }
+
+  function fromKcal(kcal, unit) {
+    return unit === 'kj' ? kcal * KJ_PER_KCAL : kcal;
+  }
+
   function unitShort(food) {
     return food.basis === 'per100g' ? '100g' : '份';
   }
 
   function energyInline(food) {
-    return trimNumber(food.energy) + ' kcal / ' + unitShort(food);
+    return kcalShort(food.energy) + ' 千卡 / ' + unitShort(food);
   }
 
   function macroSummary(food) {
@@ -103,8 +123,9 @@
       'editor-sheet', 'editor-backdrop', 'editor-title', 'food-form', 'food-name',
       'food-energy', 'food-p', 'food-f', 'food-c', 'food-delete', 'food-error',
       'basis-suffix', 'macro-sum-hint',
+      'recipe-sheet', 'recipe-backdrop', 'recipe-sheet-title', 'recipe-form', 'recipe-name',
+      'recipe-servings', 'recipe-items', 'recipe-delete', 'recipe-error',
       'picker-sheet', 'picker-backdrop', 'picker-search', 'picker-list', 'picker-no-result', 'picker-empty', 'picker-confirm',
-      'save-sheet', 'save-backdrop', 'save-form', 'save-name', 'save-summary', 'save-error',
       'confirm-backdrop', 'confirm-title', 'confirm-text', 'confirm-ok', 'confirm-cancel',
       'toast'
     ];
@@ -173,8 +194,8 @@
       closeSheet('picker');
     });
 
-    dom.saveBackdrop.addEventListener('click', function () {
-      closeSheet('save');
+    dom.recipeBackdrop.addEventListener('click', function () {
+      closeSheet('recipe');
     });
 
     $all('.seg-btn').forEach(function (btn) {
@@ -184,12 +205,25 @@
       });
     });
 
+    $all('.unit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setEnergyUnit(btn.getAttribute('data-energy-unit'), true);
+      });
+    });
+
     [dom.foodP, dom.foodF, dom.foodC].forEach(function (input) {
       input.addEventListener('input', updateMacroHint);
     });
 
     dom.foodForm.addEventListener('submit', handleFoodSubmit);
     dom.foodDelete.addEventListener('click', deleteEditingFood);
+
+    dom.saveRecipe.addEventListener('click', function () {
+      openRecipeEditor(null);
+    });
+    dom.recipeForm.addEventListener('submit', handleRecipeSubmit);
+    dom.recipeDelete.addEventListener('click', deleteEditingRecipe);
+    dom.recipeItems.addEventListener('input', handleRecipeAmountInput);
 
     dom.servingsInput.addEventListener('input', function () {
       var raw = sanitizeNumberText(dom.servingsInput.value);
@@ -219,10 +253,6 @@
     dom.recipeList.addEventListener('click', handleRecipeClick);
     dom.addFoods.addEventListener('click', openPicker);
     dom.clearRecipe.addEventListener('click', clearRecipe);
-    dom.saveRecipe.addEventListener('click', openSaveSheet);
-    dom.saveForm.addEventListener('submit', handleRecipeSave);
-    dom.recipesList.addEventListener('click', handleRecordClick);
-    dom.recipesList.addEventListener('keydown', handleRecordKeydown);
 
     dom.pickerSearch.addEventListener('input', function () {
       state.pickerQuery = dom.pickerSearch.value;
@@ -265,8 +295,8 @@
         closeSheet('picker');
         return;
       }
-      if (!dom.saveSheet.hidden) {
-        closeSheet('save');
+      if (!dom.recipeSheet.hidden) {
+        closeSheet('recipe');
         return;
       }
       if (!dom.editorSheet.hidden) closeSheet('editor');
@@ -275,15 +305,13 @@
 
   /* ---------------- Tab ---------------- */
 
-  function normalizeTab(tab) {
-    return tab === 'calc' || tab === 'recipes' ? tab : 'library';
-  }
-
   function applyTabUI() {
-    dom.viewLibrary.hidden = state.tab !== 'library';
-    dom.viewCalc.hidden = state.tab !== 'calc';
+    var isLibrary = state.tab === 'library';
+    var isCalc = state.tab === 'calc';
+    dom.viewLibrary.hidden = !isLibrary;
+    dom.viewCalc.hidden = !isCalc;
     dom.viewRecipes.hidden = state.tab !== 'recipes';
-    dom.fab.hidden = state.tab !== 'library';
+    dom.fab.hidden = !isLibrary;
 
     $all('.tab').forEach(function (btn) {
       var active = btn.getAttribute('data-tab') === state.tab;
@@ -295,29 +323,37 @@
   }
 
   function setTab(tab) {
-    state.tab = normalizeTab(tab);
+    state.tab = tab === 'calc' || tab === 'recipes' ? tab : 'library';
     Store.setTab(state.tab);
     applyTabUI();
+    if (state.tab === 'recipes') {
+      state.expandedRecipeId = null;
+      renderRecipes();
+    }
     window.scrollTo(0, 0);
   }
 
   function updateHeader() {
-    if (state.tab === 'library') {
+    var isLibrary = state.tab === 'library';
+    var isCalc = state.tab === 'calc';
+
+    if (isLibrary) {
       dom.pageTitle.textContent = '食材库';
       dom.pageSubtitle.textContent = '记录食材能量，随时换算';
       dom.foodCount.textContent = Store.getFoods().length + ' 种';
       dom.foodCount.hidden = false;
-    } else if (state.tab === 'calc') {
+    } else if (isCalc) {
       dom.pageTitle.textContent = '热量计算';
       dom.pageSubtitle.textContent = '按克重换算整份与单份热量';
       var count = Store.getRecipe().items.length;
       dom.foodCount.textContent = count + ' 种已选';
       dom.foodCount.hidden = count === 0;
     } else {
-      dom.pageTitle.textContent = '菜谱';
-      dom.pageSubtitle.textContent = '每次制作的原料与成品热量';
-      dom.foodCount.textContent = Store.getRecipeRecords().length + ' 个';
-      dom.foodCount.hidden = false;
+      dom.pageTitle.textContent = '我的菜谱';
+      dom.pageSubtitle.textContent = '记录每次制作的原料与成品热量';
+      var total = Store.getSavedRecipes().length;
+      dom.foodCount.textContent = total + ' 条';
+      dom.foodCount.hidden = total === 0;
     }
   }
 
@@ -363,8 +399,8 @@
     row.appendChild(main);
 
     var right = el('div', 'food-right');
-    var kcal = el('div', 'food-kcal', trimNumber(food.energy));
-    kcal.appendChild(el('small', '', 'kcal'));
+    var kcal = el('div', 'food-kcal', kcalShort(food.energy));
+    kcal.appendChild(el('small', '', '千卡'));
     right.appendChild(kcal);
     right.appendChild(el('div', 'food-unit', food.basis === 'per100g' ? '每 100g' : '每份'));
     row.appendChild(right);
@@ -410,7 +446,7 @@
     sub.appendChild(document.createTextNode(energyInline(food) + ' · 小计 '));
     var subValue = el('b', '', amountLabel(food, item.amount));
     sub.appendChild(subValue);
-    sub.appendChild(document.createTextNode(' kcal'));
+    sub.appendChild(document.createTextNode(' 千卡'));
     main.appendChild(sub);
 
     row.appendChild(main);
@@ -512,153 +548,104 @@
     });
   }
 
-  /* ---------------- 菜谱记录 ---------------- */
+  /* ---------------- 已保存菜谱 ---------------- */
 
-  function pad2(num) {
-    return num < 10 ? '0' + num : String(num);
+  function savedItemKcal(item) {
+    return item.basis === 'per100g' ? (item.amount / 100) * item.energy : item.amount * item.energy;
   }
 
-  function formatDate(ts) {
-    var date = new Date(ts);
+  function savedTotal(entry) {
+    return entry.items.reduce(function (sum, item) {
+      return sum + savedItemKcal(item);
+    }, 0);
+  }
+
+  function formatDate(timestamp) {
+    var date = new Date(timestamp);
     if (isNaN(date.getTime())) return '';
-    return date.getFullYear() + '/' + pad2(date.getMonth() + 1) + '/' + pad2(date.getDate()) +
-      ' ' + pad2(date.getHours()) + ':' + pad2(date.getMinutes());
-  }
-
-  function buildRecipeSnapshot() {
-    var recipe = Store.getRecipe();
-    var items = [];
-    recipe.items.forEach(function (item) {
-      var food = Store.getFood(item.foodId);
-      var amount = Number(item.amount);
-      if (!food || item.amount == null || !isFinite(amount) || amount <= 0) return;
-      items.push({
-        name: food.name,
-        amount: amount,
-        unit: food.basis === 'per100g' ? 'g' : '份',
-        kcal: lineCalories(food, amount)
-      });
-    });
-    return { servings: recipe.servings, items: items };
-  }
-
-  function openSaveSheet() {
-    var snapshot = buildRecipeSnapshot();
-    if (!snapshot.items.length) {
-      toast('先填写食材用量再保存');
-      return;
-    }
-
-    state.saveDraft = snapshot;
-    var total = 0;
-    snapshot.items.forEach(function (item) {
-      total += item.kcal;
-    });
-
-    dom.saveName.value = '';
-    dom.saveError.hidden = true;
-    dom.saveSummary.textContent = snapshot.items.length + ' 种食材 · 总热量 ' + kcalLine(total) +
-      ' 千卡 · 单份 ' + kcalLine(total / snapshot.servings) + ' 千卡';
-    openSheet('save');
-    window.setTimeout(function () {
-      dom.saveName.focus();
-    }, 320);
-  }
-
-  function handleRecipeSave(event) {
-    event.preventDefault();
-
-    var snapshot = state.saveDraft;
-    if (!snapshot || !snapshot.items.length) {
-      dom.saveError.textContent = '当前没有可保存的食材';
-      dom.saveError.hidden = false;
-      return;
-    }
-
-    var name = dom.saveName.value.trim();
-    if (!name) {
-      dom.saveError.textContent = '请填写成品名称';
-      dom.saveError.hidden = false;
-      return;
-    }
-
-    var record = Store.addRecipeRecord({
-      name: name,
-      servings: snapshot.servings,
-      items: snapshot.items
-    });
-
-    if (!record) {
-      dom.saveError.textContent = '保存失败，请重试';
-      dom.saveError.hidden = false;
-      return;
-    }
-
-    closeSheet('save');
-    state.expandedRecordId = record.id;
-    renderRecipes();
-    setTab('recipes');
-    toast('已保存「' + name + '」');
+    var now = new Date();
+    var prefix = date.getFullYear() === now.getFullYear() ? '' : date.getFullYear() + '年';
+    return prefix + (date.getMonth() + 1) + '月' + date.getDate() + '日';
   }
 
   function renderRecipes() {
-    var records = Store.getRecipeRecords();
+    var entries = Store.getSavedRecipes();
+
     dom.recipesList.replaceChildren();
-    records.forEach(function (record) {
-      dom.recipesList.appendChild(createRecordCard(record));
+    entries.forEach(function (entry) {
+      dom.recipesList.appendChild(createSavedCard(entry));
     });
 
-    dom.recipesList.hidden = records.length === 0;
-    dom.recipesEmpty.hidden = records.length > 0;
+    dom.recipesList.hidden = entries.length === 0;
+    dom.recipesEmpty.hidden = entries.length > 0;
     updateHeader();
   }
 
-  function createRecordCard(record) {
-    var card = el('li', 'record-card');
-    card.setAttribute('data-record-id', record.id);
+  function createSavedCard(entry) {
+    var total = savedTotal(entry);
+    var card = el('li', 'saved-card');
+    card.setAttribute('data-recipe-id', entry.id);
 
-    var expanded = state.expandedRecordId === record.id;
+    var head = el('button', 'saved-head');
+    head.type = 'button';
+    head.setAttribute('aria-expanded', String(state.expandedRecipeId === entry.id));
 
-    var head = el('div', 'record-head');
-    head.setAttribute('role', 'button');
-    head.setAttribute('tabindex', '0');
-    head.setAttribute('aria-expanded', String(expanded));
-    head.setAttribute('aria-label', (expanded ? '收起 ' : '展开 ') + record.name);
-
-    var main = el('div', 'record-main');
-    main.appendChild(el('div', 'record-name', record.name));
-    main.appendChild(el('div', 'record-meta',
-      formatDate(record.createdAt) + ' · ' + record.items.length + ' 种食材 · ' + trimNumber(record.servings) + ' 份'));
+    var main = el('div', 'saved-main');
+    main.appendChild(el('div', 'saved-name', entry.name));
+    main.appendChild(el('div', 'saved-meta',
+      entry.items.length + ' 种原料 · ' + trimNumber(entry.servings) + ' 份 · ' + formatDate(entry.updatedAt)));
     head.appendChild(main);
 
-    var right = el('div', 'record-right');
-    var per = el('div', 'record-per', kcalLine(record.perServingKcal));
+    var right = el('div', 'saved-right');
+    var per = el('div', 'saved-kcal', kcalLine(total / entry.servings));
     per.appendChild(el('small', '', '千卡/份'));
     right.appendChild(per);
-    right.appendChild(el('div', 'record-total', '总 ' + kcalLine(record.totalKcal) + ' 千卡'));
+    right.appendChild(el('div', 'saved-total', '总 ' + kcalLine(total) + ' 千卡'));
     head.appendChild(right);
 
-    head.appendChild(el('span', 'record-chevron', '›'));
+    head.addEventListener('click', function () {
+      state.expandedRecipeId = state.expandedRecipeId === entry.id ? null : entry.id;
+      renderRecipes();
+    });
     card.appendChild(head);
 
-    var detail = el('div', 'record-detail');
-    detail.hidden = !expanded;
+    var detail = el('div', 'saved-detail');
+    detail.hidden = state.expandedRecipeId !== entry.id;
 
-    var itemList = el('ul', 'record-items');
-    record.items.forEach(function (item) {
-      var row = el('li', 'record-item');
-      row.appendChild(el('span', 'record-item-name', item.name));
-      row.appendChild(el('span', 'record-item-amount',
-        (item.amount == null ? '—' : trimNumber(item.amount)) + ' ' + item.unit));
-      row.appendChild(el('span', 'record-item-kcal', kcalLine(item.kcal) + ' 千卡'));
-      itemList.appendChild(row);
+    var items = el('ul', 'saved-items');
+    entry.items.forEach(function (item) {
+      var row = el('li', 'saved-item');
+      row.appendChild(el('span', 'saved-item-name', item.name));
+      row.appendChild(el('span', 'saved-item-amount',
+        trimNumber(item.amount) + (item.basis === 'per100g' ? 'g' : ' 份')));
+      row.appendChild(el('span', 'saved-item-kcal', kcalLine(savedItemKcal(item)) + ' 千卡'));
+      items.appendChild(row);
     });
-    detail.appendChild(itemList);
+    detail.appendChild(items);
 
-    var actions = el('div', 'record-actions');
-    var remove = el('button', 'record-delete', '删除记录');
+    var actions = el('div', 'saved-actions');
+    var edit = el('button', 'btn btn-ghost', '编辑');
+    edit.type = 'button';
+    edit.addEventListener('click', function () {
+      openRecipeEditor(entry);
+    });
+    var remove = el('button', 'btn btn-ghost-danger', '删除');
     remove.type = 'button';
-    remove.setAttribute('data-record-delete', record.id);
+    remove.addEventListener('click', function () {
+      askConfirm({
+        title: '删除「' + entry.name + '」？',
+        text: '删除后无法恢复。',
+        okText: '删除',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        Store.deleteSavedRecipe(entry.id);
+        if (state.expandedRecipeId === entry.id) state.expandedRecipeId = null;
+        renderRecipes();
+        toast('已删除菜谱');
+      });
+    });
+    actions.appendChild(edit);
     actions.appendChild(remove);
     detail.appendChild(actions);
 
@@ -666,45 +653,194 @@
     return card;
   }
 
-  function toggleRecord(id) {
-    state.expandedRecordId = state.expandedRecordId === id ? null : id;
-    renderRecipes();
+  /* ---------------- 菜谱保存 / 编辑 ---------------- */
+
+  function buildDraftFromCalc() {
+    var recipe = Store.getRecipe();
+    var items = [];
+
+    recipe.items.forEach(function (item) {
+      var food = Store.getFood(item.foodId);
+      if (!food) return;
+      var amount = Number(item.amount);
+      if (item.amount == null || !isFinite(amount) || amount <= 0) return;
+      items.push({
+        name: food.name,
+        basis: food.basis,
+        energy: food.energy,
+        amount: amount
+      });
+    });
+
+    if (!items.length) return null;
+    return { name: '', servings: recipe.servings, items: items };
   }
 
-  function handleRecordClick(event) {
-    var remove = event.target.closest('[data-record-delete]');
-    if (remove) {
-      deleteRecord(remove.getAttribute('data-record-delete'));
+  function openRecipeEditor(entry) {
+    var draft;
+    if (entry) {
+      draft = {
+        name: entry.name,
+        servings: entry.servings,
+        items: entry.items.map(function (item) {
+          return Object.assign({}, item);
+        })
+      };
+    } else {
+      draft = buildDraftFromCalc();
+    }
+
+    if (!draft) {
+      toast('先添加食材并输入用量');
       return;
     }
-    var head = event.target.closest('.record-head');
-    if (!head) return;
-    toggleRecord(head.closest('.record-card').getAttribute('data-record-id'));
+
+    state.editingRecipeId = entry ? entry.id : null;
+    state.recipeDraft = draft;
+
+    dom.recipeSheetTitle.textContent = entry ? '编辑菜谱' : '保存菜谱';
+    dom.recipeName.value = draft.name;
+    dom.recipeServings.value = trimNumber(draft.servings);
+    dom.recipeDelete.hidden = !entry;
+    dom.recipeError.hidden = true;
+
+    renderRecipeEditorItems();
+    openSheet('recipe');
+
+    window.setTimeout(function () {
+      dom.recipeName.focus();
+    }, 320);
   }
 
-  function handleRecordKeydown(event) {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    var head = event.target.closest('.record-head');
-    if (!head) return;
+  function renderRecipeEditorItems() {
+    var draft = state.recipeDraft;
+    if (!draft) return;
+
+    dom.recipeItems.replaceChildren();
+
+    draft.items.forEach(function (item, index) {
+      var row = el('li', 'edit-item');
+      row.setAttribute('data-index', String(index));
+
+      var info = el('div', 'edit-item-info');
+      info.appendChild(el('div', 'edit-item-name', item.name));
+      info.appendChild(el('div', 'edit-item-meta',
+        kcalShort(item.energy) + ' 千卡 / ' + (item.basis === 'per100g' ? '100g' : '份')));
+      row.appendChild(info);
+
+      var control = el('div', 'edit-item-control');
+      var box = el('div', 'amount-box');
+      var input = document.createElement('input');
+      input.className = 'edit-amount';
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      input.autocomplete = 'off';
+      input.value = trimNumber(item.amount);
+      input.setAttribute('aria-label', item.name + ' 用量');
+      box.appendChild(input);
+      box.appendChild(el('span', 'amount-unit', item.basis === 'per100g' ? 'g' : '份'));
+      control.appendChild(box);
+
+      var remove = el('button', 'row-remove', '×');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', '移除 ' + item.name);
+      remove.addEventListener('click', function () {
+        draft.items.splice(index, 1);
+        renderRecipeEditorItems();
+      });
+      control.appendChild(remove);
+
+      row.appendChild(control);
+      dom.recipeItems.appendChild(row);
+    });
+
+    if (!draft.items.length) {
+      dom.recipeItems.appendChild(el('li', 'list-empty', '没有原料了，可在计算页重新选择后保存'));
+    }
+  }
+
+  function handleRecipeAmountInput(event) {
+    var input = event.target.closest('.edit-amount');
+    if (!input || !state.recipeDraft) return;
+
+    var row = input.closest('.edit-item');
+    var index = Number(row.getAttribute('data-index'));
+    var item = state.recipeDraft.items[index];
+    if (!item) return;
+
+    var raw = sanitizeNumberText(input.value);
+    if (raw !== input.value) input.value = raw;
+
+    var value = raw === '' ? 0 : Number(raw);
+    if (!isFinite(value) || value < 0) value = 0;
+    item.amount = value;
+  }
+
+  function showRecipeError(message) {
+    dom.recipeError.textContent = message;
+    dom.recipeError.hidden = false;
+  }
+
+  function handleRecipeSubmit(event) {
     event.preventDefault();
-    toggleRecord(head.closest('.record-card').getAttribute('data-record-id'));
+    if (!state.recipeDraft) return;
+
+    var name = dom.recipeName.value.trim();
+    if (!name) {
+      showRecipeError('请填写菜谱名称');
+      return;
+    }
+
+    var servingsRaw = sanitizeNumberText(dom.recipeServings.value).trim();
+    var servings = Number(servingsRaw);
+    if (servingsRaw === '' || !isFinite(servings) || servings <= 0) {
+      showRecipeError('份数需大于 0');
+      return;
+    }
+
+    var items = state.recipeDraft.items.filter(function (item) {
+      return item.amount > 0;
+    });
+    if (!items.length) {
+      showRecipeError('至少保留一种原料的用量');
+      return;
+    }
+
+    var isEdit = !!state.editingRecipeId;
+    var saved = Store.saveSavedRecipe({
+      id: state.editingRecipeId || undefined,
+      name: name,
+      servings: servings,
+      items: items
+    });
+
+    if (!saved) {
+      showRecipeError('保存失败，请重试');
+      return;
+    }
+
+    closeSheet('recipe');
+    renderRecipes();
+    toast(isEdit ? '菜谱已更新' : '已保存到菜谱');
   }
 
-  function deleteRecord(id) {
-    var record = Store.getRecipeRecord(id);
-    if (!record) return;
+  function deleteEditingRecipe() {
+    var id = state.editingRecipeId;
+    if (!id) return;
+    var name = state.recipeDraft ? state.recipeDraft.name : '这条菜谱';
 
     askConfirm({
-      title: '删除「' + record.name + '」？',
-      text: '这条制作记录会被删除，无法恢复。',
+      title: '删除「' + (name || '这条菜谱') + '」？',
+      text: '删除后无法恢复。',
       okText: '删除',
       danger: true
     }).then(function (ok) {
       if (!ok) return;
-      Store.deleteRecipeRecord(id);
-      if (state.expandedRecordId === id) state.expandedRecordId = null;
+      Store.deleteSavedRecipe(id);
+      closeSheet('recipe');
+      if (state.expandedRecipeId === id) state.expandedRecipeId = null;
       renderRecipes();
-      toast('已删除记录');
+      toast('已删除菜谱');
     });
   }
 
@@ -810,24 +946,46 @@
   function openEditor(food) {
     state.editingId = food ? food.id : null;
     state.basis = food ? food.basis : 'per100g';
+    state.energyUnit = 'kj';
 
     dom.foodForm.reset();
     dom.editorTitle.textContent = food ? '编辑食材' : '添加食材';
     dom.foodName.value = food ? food.name : '';
-    dom.foodEnergy.value = food ? trimNumber(food.energy) : '';
+    dom.foodEnergy.value = food ? trimNumber(fromKcal(food.energy, 'kj')) : '';
     dom.foodP.value = food && food.protein != null ? trimNumber(food.protein) : '';
     dom.foodF.value = food && food.fat != null ? trimNumber(food.fat) : '';
     dom.foodC.value = food && food.carbs != null ? trimNumber(food.carbs) : '';
     dom.foodDelete.hidden = !food;
     dom.foodError.hidden = true;
 
-    applyBasis();
+    setEnergyUnit('kj', false);
     updateMacroHint();
     openSheet('editor');
 
     window.setTimeout(function () {
       dom.foodName.focus();
     }, 320);
+  }
+
+  function setEnergyUnit(unit, convert) {
+    var next = unit === 'kcal' ? 'kcal' : 'kj';
+    if (convert && next !== state.energyUnit) {
+      var raw = sanitizeNumberText(dom.foodEnergy.value).trim();
+      var num = Number(raw);
+      if (raw !== '' && isFinite(num) && num >= 0) {
+        var kcal = toKcal(num, state.energyUnit);
+        dom.foodEnergy.value = String(Math.round(fromKcal(kcal, next) * 10) / 10);
+      }
+    }
+    state.energyUnit = next;
+
+    $all('.unit-btn').forEach(function (btn) {
+      var active = btn.getAttribute('data-energy-unit') === next;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-checked', String(active));
+    });
+
+    applyBasis();
   }
 
   function applyBasis() {
@@ -837,8 +995,11 @@
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-checked', String(active));
     });
-    dom.basisSuffix.textContent = perServing ? 'kcal / 份' : 'kcal / 100g';
-    dom.foodEnergy.setAttribute('placeholder', perServing ? '如：120' : '如：250');
+
+    var isKj = state.energyUnit === 'kj';
+    dom.basisSuffix.textContent = (isKj ? 'kJ' : '千卡') + (perServing ? ' / 份' : ' / 100g');
+    dom.foodEnergy.setAttribute('placeholder',
+      isKj ? (perServing ? '如：500' : '如：1000') : (perServing ? '如：120' : '如：250'));
   }
 
   function parsePercent(input) {
@@ -887,9 +1048,10 @@
     var energyRaw = sanitizeNumberText(dom.foodEnergy.value).trim();
     var energy = Number(energyRaw);
     if (energyRaw === '' || !isFinite(energy) || energy < 0) {
-      showFormError('请填写有效的能量值（kcal）');
+      showFormError('请填写有效的能量值');
       return;
     }
+    var energyKcal = round2(toKcal(energy, state.energyUnit));
 
     var protein = parsePercent(dom.foodP);
     var fat = parsePercent(dom.foodF);
@@ -904,7 +1066,7 @@
       id: state.editingId || undefined,
       name: name,
       basis: state.basis,
-      energy: energy,
+      energy: energyKcal,
       protein: protein.value,
       fat: fat.value,
       carbs: carbs.value
@@ -946,8 +1108,8 @@
     if (name === 'picker') {
       return { sheet: dom.pickerSheet, backdrop: dom.pickerBackdrop };
     }
-    if (name === 'save') {
-      return { sheet: dom.saveSheet, backdrop: dom.saveBackdrop };
+    if (name === 'recipe') {
+      return { sheet: dom.recipeSheet, backdrop: dom.recipeBackdrop };
     }
     return { sheet: dom.editorSheet, backdrop: dom.editorBackdrop };
   }
@@ -985,7 +1147,10 @@
 
     document.body.classList.remove('sheet-open');
     if (name === 'editor') state.editingId = null;
-    if (name === 'save') state.saveDraft = null;
+    if (name === 'recipe') {
+      state.editingRecipeId = null;
+      state.recipeDraft = null;
+    }
   }
 
   /* ---------------- 确认弹窗 / Toast ---------------- */

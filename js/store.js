@@ -6,7 +6,7 @@
 
   var FOODS_KEY = 'fcc.foods.v1';
   var RECIPE_KEY = 'fcc.recipe.v1';
-  var RECORDS_KEY = 'fcc.records.v1';
+  var RECIPES_KEY = 'fcc.recipes.v1';
   var TAB_KEY = 'fcc.tab.v1';
 
   function read(key, fallback) {
@@ -29,6 +29,10 @@
 
   function uid() {
     return 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function rid() {
+    return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
 
   function percentOrNull(value) {
@@ -104,73 +108,65 @@
   }
 
   var recipe = loadRecipe();
+  var tab = read(TAB_KEY, 'library');
 
-  function normalizeRecordItem(raw) {
+  function persistRecipe() {
+    write(RECIPE_KEY, recipe);
+  }
+
+  /* ---------------- 已保存菜谱（快照） ---------------- */
+
+  function normalizeSavedItem(raw) {
     if (!raw || typeof raw !== 'object') return null;
     var name = String(raw.name == null ? '' : raw.name).trim();
     if (!name) return null;
-    var amount = raw.amount == null || raw.amount === '' ? null : Number(raw.amount);
-    if (amount != null && (!isFinite(amount) || amount < 0)) amount = null;
-    var kcal = Number(raw.kcal);
-    if (!isFinite(kcal) || kcal < 0) kcal = 0;
+    var energy = Number(raw.energy);
+    if (!isFinite(energy) || energy < 0) energy = 0;
+    var amount = Number(raw.amount);
+    if (!isFinite(amount) || amount < 0) amount = 0;
     return {
       name: name,
-      amount: amount,
-      unit: raw.unit === '份' ? '份' : 'g',
-      kcal: kcal
+      basis: raw.basis === 'perServing' ? 'perServing' : 'per100g',
+      energy: energy,
+      amount: amount
     };
   }
 
-  function normalizeRecord(raw) {
+  function normalizeSavedRecipe(raw) {
     if (!raw || typeof raw !== 'object') return null;
     var name = String(raw.name == null ? '' : raw.name).trim();
     if (!name) return null;
     var servings = Number(raw.servings);
     if (!isFinite(servings) || servings <= 0) servings = 1;
-    var items = Array.isArray(raw.items) ? raw.items.map(normalizeRecordItem).filter(Boolean) : [];
+    var items = (Array.isArray(raw.items) ? raw.items : []).map(normalizeSavedItem).filter(Boolean);
     if (!items.length) return null;
-
-    var totalKcal = 0;
-    items.forEach(function (item) {
-      totalKcal += item.kcal;
-    });
-
     return {
-      id: raw.id ? String(raw.id) : uid(),
+      id: raw.id ? String(raw.id) : rid(),
       name: name,
       servings: servings,
       items: items,
-      totalKcal: totalKcal,
-      perServingKcal: totalKcal / servings,
-      createdAt: Number(raw.createdAt) || Date.now()
+      createdAt: Number(raw.createdAt) || Date.now(),
+      updatedAt: Number(raw.updatedAt) || Date.now()
     };
   }
 
-  function loadRecords() {
-    var list = read(RECORDS_KEY, []);
+  function loadSavedRecipes() {
+    var list = read(RECIPES_KEY, []);
     if (!Array.isArray(list)) return [];
-    return list.map(normalizeRecord).filter(Boolean).sort(function (a, b) {
-      return b.createdAt - a.createdAt;
-    });
+    return list.map(normalizeSavedRecipe).filter(Boolean);
   }
 
-  var records = loadRecords();
+  var savedRecipes = loadSavedRecipes();
 
-  function persistRecords() {
-    write(RECORDS_KEY, records);
+  function persistSavedRecipes() {
+    write(RECIPES_KEY, savedRecipes);
   }
 
-  function findRecord(id) {
-    for (var i = 0; i < records.length; i++) {
-      if (records[i].id === id) return records[i];
+  function indexOfSavedRecipe(id) {
+    for (var i = 0; i < savedRecipes.length; i++) {
+      if (savedRecipes[i].id === id) return i;
     }
-    return null;
-  }
-
-  var tab = read(TAB_KEY, 'library');
-
-  function persistRecipe() {
-    write(RECIPE_KEY, recipe);
+    return -1;
   }
 
   function findRecipeItem(foodId) {
@@ -273,6 +269,50 @@
       persistRecipe();
     },
 
+    getSavedRecipes: function () {
+      return savedRecipes.map(function (entry) {
+        return {
+          id: entry.id,
+          name: entry.name,
+          servings: entry.servings,
+          items: entry.items.map(function (item) {
+            return Object.assign({}, item);
+          }),
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt
+        };
+      }).sort(function (a, b) {
+        return b.createdAt - a.createdAt;
+      });
+    },
+
+    saveSavedRecipe: function (data) {
+      if (!data) return null;
+      var idx = data.id ? indexOfSavedRecipe(String(data.id)) : -1;
+      var base = idx !== -1 ? savedRecipes[idx] : {};
+      var entry = normalizeSavedRecipe(Object.assign({}, base, data, {
+        id: idx !== -1 ? base.id : undefined,
+        createdAt: idx !== -1 ? base.createdAt : undefined,
+        updatedAt: Date.now()
+      }));
+      if (!entry) return null;
+      if (idx !== -1) {
+        savedRecipes[idx] = entry;
+      } else {
+        savedRecipes.push(entry);
+      }
+      persistSavedRecipes();
+      return entry;
+    },
+
+    deleteSavedRecipe: function (id) {
+      var idx = indexOfSavedRecipe(id);
+      if (idx === -1) return false;
+      savedRecipes.splice(idx, 1);
+      persistSavedRecipes();
+      return true;
+    },
+
     getTab: function () {
       return tab === 'calc' || tab === 'recipes' ? tab : 'library';
     },
@@ -280,38 +320,6 @@
     setTab: function (next) {
       tab = next === 'calc' || next === 'recipes' ? next : 'library';
       write(TAB_KEY, tab);
-    },
-
-    getRecipeRecords: function () {
-      return records.map(function (record) {
-        return Object.assign({}, record, {
-          items: record.items.map(function (item) {
-            return Object.assign({}, item);
-          })
-        });
-      });
-    },
-
-    getRecipeRecord: function (id) {
-      return findRecord(id);
-    },
-
-    addRecipeRecord: function (data) {
-      var record = normalizeRecord(data);
-      if (!record) return null;
-      records.unshift(record);
-      persistRecords();
-      return record;
-    },
-
-    deleteRecipeRecord: function (id) {
-      var before = records.length;
-      records = records.filter(function (record) {
-        return record.id !== id;
-      });
-      if (before === records.length) return false;
-      persistRecords();
-      return true;
     }
   };
 })();

@@ -103,30 +103,17 @@
             </div>
           </div>
           <p class="result-meta" id="result-meta">0 种食材 · 1 份</p>
-          <button class="result-save" id="save-recipe" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"></path>
-            </svg>
-            保存为菜谱
-          </button>
+          <button class="result-save" id="save-recipe" type="button">保存为菜谱</button>
         </div>
       </section>
 
       <!-- 菜谱记录 -->
       <section class="view" id="view-recipes" hidden>
-        <ul class="list" id="recipes-list"></ul>
-
-        <div class="empty" id="recipes-empty" hidden>
-          <div class="empty-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"></path>
-              <path d="M9 8h6M9 12h6"></path>
-            </svg>
-          </div>
-          <h2>还没有菜谱记录</h2>
-          <p>在「热量计算」里选好食材和份数，点「保存为菜谱」，这里会留下每次制作的原料和成品热量。</p>
-          <button class="btn btn-primary" type="button" data-action="go-calc">去计算</button>
+        <div class="empty compact" id="recipes-empty" hidden>
+          <p>计算完成后点「保存为菜谱」，这里会记录每次制作的原料、份数和热量。</p>
+          <button class="btn btn-primary" type="button" data-action="go-calc">去计算热量</button>
         </div>
+        <ul class="list" id="recipes-list"></ul>
       </section>
     </main>
 
@@ -153,8 +140,9 @@
       </button>
       <button class="tab" type="button" data-tab="recipes" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"></path>
-          <path d="M9 8h6M9 12h6"></path>
+          <path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h12v15H7a2.5 2.5 0 0 0-2.5 2.5V5.5Z"></path>
+          <path d="M4.5 20.5A2.5 2.5 0 0 1 7 18h12v3H7"></path>
+          <path d="M8.5 7.5h7M8.5 11h5"></path>
         </svg>
         <span>菜谱</span>
       </button>
@@ -187,10 +175,16 @@
           </div>
         </div>
 
-        <label class="field">
-          <span class="field-label">能量值<span class="field-sub" id="basis-suffix">kcal / 100g</span></span>
-          <input id="food-energy" type="text" inputmode="decimal" placeholder="如：250" autocomplete="off">
-        </label>
+        <div class="field">
+          <span class="field-label">能量值<span class="field-sub" id="basis-suffix">kJ / 100g</span></span>
+          <div class="energy-row">
+            <input id="food-energy" type="text" inputmode="decimal" placeholder="如：1000" autocomplete="off">
+            <div class="unit-toggle" role="radiogroup" aria-label="能量单位">
+              <button class="unit-btn is-active" type="button" data-energy-unit="kj" role="radio" aria-checked="true">千焦</button>
+              <button class="unit-btn" type="button" data-energy-unit="kcal" role="radio" aria-checked="false">千卡</button>
+            </div>
+          </div>
+        </div>
 
         <div class="field">
           <span class="field-label">营养占比<span class="optional">选填</span></span>
@@ -215,6 +209,43 @@
       </div>
       <footer class="sheet-foot">
         <button class="btn btn-ghost-danger" id="food-delete" type="button" hidden>删除</button>
+        <button class="btn btn-primary" type="submit">保存</button>
+      </footer>
+    </form>
+  </section>
+
+  <!-- 菜谱保存 / 编辑弹层 -->
+  <div class="sheet-backdrop" id="recipe-backdrop" hidden></div>
+  <section class="sheet" id="recipe-sheet" role="dialog" aria-modal="true" aria-labelledby="recipe-sheet-title" hidden>
+    <header class="sheet-head">
+      <h2 id="recipe-sheet-title">保存菜谱</h2>
+      <button class="icon-btn" type="button" data-close-sheet="recipe" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18"></path>
+        </svg>
+      </button>
+    </header>
+    <form id="recipe-form" novalidate>
+      <div class="sheet-body">
+        <label class="field">
+          <span class="field-label">菜谱名称</span>
+          <input id="recipe-name" type="text" maxlength="30" placeholder="如：全麦贝果" autocomplete="off" enterkeyhint="done">
+        </label>
+
+        <label class="field">
+          <span class="field-label">本次份数</span>
+          <input id="recipe-servings" type="text" inputmode="decimal" autocomplete="off">
+        </label>
+
+        <div class="field">
+          <span class="field-label">原料用量<span class="field-sub">可改克重或份数</span></span>
+          <ul class="edit-items" id="recipe-items"></ul>
+        </div>
+
+        <p class="form-error" id="recipe-error" hidden></p>
+      </div>
+      <footer class="sheet-foot">
+        <button class="btn btn-ghost-danger" id="recipe-delete" type="button" hidden>删除</button>
         <button class="btn btn-primary" type="submit">保存</button>
       </footer>
     </form>
@@ -249,33 +280,6 @@
     <footer class="sheet-foot">
       <button class="btn btn-primary" id="picker-confirm" type="button" disabled>请选择食材</button>
     </footer>
-  </section>
-
-  <!-- 保存菜谱弹层 -->
-  <div class="sheet-backdrop" id="save-backdrop" hidden></div>
-  <section class="sheet" id="save-sheet" role="dialog" aria-modal="true" aria-labelledby="save-title" hidden>
-    <header class="sheet-head">
-      <h2 id="save-title">保存为菜谱</h2>
-      <button class="icon-btn" type="button" data-close-sheet="save" aria-label="关闭">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M6 6l12 12M18 6 6 18"></path>
-        </svg>
-      </button>
-    </header>
-    <form id="save-form" novalidate>
-      <div class="sheet-body">
-        <label class="field">
-          <span class="field-label">成品名称</span>
-          <input id="save-name" type="text" maxlength="30" placeholder="如：全麦贝果" autocomplete="off" enterkeyhint="done">
-        </label>
-        <p class="field-hint" id="save-summary"></p>
-        <p class="form-error" id="save-error" hidden></p>
-      </div>
-      <footer class="sheet-foot">
-        <button class="btn btn-ghost" type="button" data-close-sheet="save">取消</button>
-        <button class="btn btn-primary" type="submit">保存</button>
-      </footer>
-    </form>
   </section>
 
   <!-- 确认弹窗 -->

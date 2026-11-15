@@ -1,5 +1,5 @@
 /* 离线缓存：应用外壳优先走缓存，页面导航失败时回退到 index.html */
-var CACHE_NAME = 'recipe-kcal-v3';
+var CACHE_NAME = 'recipe-kcal-v2';
 var CORE_ASSETS = [
   './',
   './index.html',
