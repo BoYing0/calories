@@ -1,11 +1,11 @@
 /* 离线缓存：应用外壳优先走缓存，页面导航失败时回退到 index.html */
-var CACHE_NAME = 'recipe-kcal-v8';
+var CACHE_NAME = 'recipe-kcal-v9';
 var CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=7',
-  './js/store.js?v=7',
-  './js/app.js?v=7',
+  './styles.css?v=8',
+  './js/store.js?v=8',
+  './js/app.js?v=8',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

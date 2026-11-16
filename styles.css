@@ -432,6 +432,7 @@ input:focus-visible {
 .amount-input {
   flex: 1 1 0;
   width: 0;
+  min-width: 0;
   border: 0;
   background: transparent;
   text-align: right;
@@ -847,7 +848,7 @@ input:focus-visible {
   font-weight: 400;
 }
 
-.field input {
+.field > input {
   width: 100%;
   height: 46px;
   padding: 0 13px;
@@ -859,7 +860,7 @@ input:focus-visible {
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.field input:focus {
+.field > input:focus {
   border-color: #9bcfb3;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(21, 130, 90, 0.1);
