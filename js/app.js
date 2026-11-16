@@ -65,10 +65,6 @@
     return trimNumber(Math.round(value * 10) / 10);
   }
 
-  function round2(num) {
-    return Math.round(num * 100) / 100;
-  }
-
   function toKcal(value, unit) {
     return unit === 'kj' ? value / KJ_PER_KCAL : value;
   }
@@ -975,7 +971,7 @@
       var num = Number(raw);
       if (raw !== '' && isFinite(num) && num >= 0) {
         var kcal = toKcal(num, state.energyUnit);
-        dom.foodEnergy.value = String(Math.round(fromKcal(kcal, next) * 10) / 10);
+        dom.foodEnergy.value = trimNumber(fromKcal(kcal, next));
       }
     }
     state.energyUnit = next;
@@ -1052,7 +1048,7 @@
       showFormError('请填写有效的能量值');
       return;
     }
-    var energyKcal = round2(toKcal(energy, state.energyUnit));
+    var energyKcal = toKcal(energy, state.energyUnit);
 
     var protein = parsePercent(dom.foodP);
     var fat = parsePercent(dom.foodF);

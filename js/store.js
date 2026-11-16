@@ -8,6 +8,18 @@
   var RECIPE_KEY = 'fcc.recipe.v1';
   var RECIPES_KEY = 'fcc.recipes.v1';
   var TAB_KEY = 'fcc.tab.v1';
+  var KJ_PER_KCAL = 4.184;
+
+  /* 旧版本把千卡存成 2 位小数，整数千焦换算后会有 0.01~0.02 的累计偏差；
+     把接近整数千焦的值还原为整数千焦，保证总量与用户输入一致 */
+  function refineEnergy(kcal) {
+    var kj = kcal * KJ_PER_KCAL;
+    var nearest = Math.round(kj);
+    if (nearest > 0 && Math.abs(kj - nearest) < 0.03) {
+      return nearest / KJ_PER_KCAL;
+    }
+    return kcal;
+  }
 
   function read(key, fallback) {
     try {
@@ -52,7 +64,7 @@
       id: raw.id ? String(raw.id) : uid(),
       name: name,
       basis: raw.basis === 'perServing' ? 'perServing' : 'per100g',
-      energy: energy,
+      energy: refineEnergy(energy),
       protein: percentOrNull(raw.protein),
       fat: percentOrNull(raw.fat),
       carbs: percentOrNull(raw.carbs),
@@ -127,7 +139,7 @@
     return {
       name: name,
       basis: raw.basis === 'perServing' ? 'perServing' : 'per100g',
-      energy: energy,
+      energy: refineEnergy(energy),
       amount: amount
     };
   }
